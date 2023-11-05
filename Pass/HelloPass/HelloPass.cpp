@@ -1,11 +1,11 @@
-#include "llvm/Pass.h"
-#include "llvm/IR/Module.h"
-#include "llvm/IR/Function.h"
-#include "llvm/Support/raw_ostream.h"
-#include "llvm/IR/Type.h"
-#include "llvm/IR/Instructions.h"
-#include "llvm/IR/Instruction.h"
 #include "llvm/IR/CFG.h"
+#include "llvm/IR/Function.h"
+#include "llvm/IR/Instruction.h"
+#include "llvm/IR/Instructions.h"
+#include "llvm/IR/Module.h"
+#include "llvm/IR/Type.h"
+#include "llvm/Pass.h"
+#include "llvm/Support/raw_ostream.h"
 #include <string>
 
 using namespace llvm;
@@ -13,69 +13,61 @@ using namespace std;
 
 #define DEBUG_TYPE "HelloPass"
 
-namespace
-{
-  struct HelloPass : public FunctionPass
-  {
+namespace {
+struct HelloPass : public FunctionPass {
     static char ID;
     HelloPass() : FunctionPass(ID) {}
 
-    bool runOnFunction(Function &F) override
-    {
-      errs() << "HelloPass runOnFunction: ";
-      errs() << F.getName() << "\n";
+    bool runOnFunction(Function &F) override {
+        errs() << "HelloPass runOnFunction: ";
+        errs() << F.getName() << "\n";
 
-      for (auto &basic_block : F)
-      {
-        for (auto &inst : basic_block)
-        {
-          errs() << inst << "\n";
-          if (inst.getOpcode() == Instruction::Load)
-          {
-            errs() << "This is Load"
-                   << "\n";
-          }
-          if (inst.getOpcode() == Instruction::Store)
-          {
-            errs() << "This is Store"
-                   << "\n";
-          }
-          if (inst.isBinaryOp())
-          {
-            errs() << "Op Code:" << inst.getOpcodeName() << "\n"; 
-            if (inst.getOpcode() == Instruction::Add)
-            {
-              errs() << "This is Addition"
-                     << "\n";
+        for (auto &basic_block : F) {
+            for (auto *pred: predecessors(&basic_block)) {
             }
-            if (inst.getOpcode() == Instruction::Sub)
-            {
-              errs() << "This is Subtraction"
-                     << "\n";
+            for (auto *succ: successors(&basic_block)) {
             }
-            if (inst.getOpcode() == Instruction::Mul)
-            {
-              errs() << "This is Multiplication"
-                     << "\n";
-            }
-            if (inst.getOpcode() == Instruction::SDiv)
-            {
-              errs() << "This is Division"
-                     << "\n";
-            }
+            for (auto &inst : basic_block) {
+                errs() << inst << "\n";
+                if (inst.getOpcode() == Instruction::Load) {
+                    errs() << "This is Load"
+                           << "\n";
+                }
+                if (inst.getOpcode() == Instruction::Store) {
+                    errs() << "This is Store"
+                           << "\n";
+                }
+                if (inst.isBinaryOp()) {
+                    errs() << "Op Code:" << inst.getOpcodeName() << "\n";
+                    if (inst.getOpcode() == Instruction::Add) {
+                        errs() << "This is Addition"
+                               << "\n";
+                    }
+                    if (inst.getOpcode() == Instruction::Sub) {
+                        errs() << "This is Subtraction"
+                               << "\n";
+                    }
+                    if (inst.getOpcode() == Instruction::Mul) {
+                        errs() << "This is Multiplication"
+                               << "\n";
+                    }
+                    if (inst.getOpcode() == Instruction::SDiv) {
+                        errs() << "This is Division"
+                               << "\n";
+                    }
 
-            // See Other classes, Instruction::Sub, Instruction::UDiv, Instruction::SDiv
-            auto *ptr = dyn_cast<User>(&inst);
-            for (auto it = ptr->op_begin(); it != ptr->op_end(); ++it)
-            {
-              errs() << "\t" << *(*it) << "\n";
+                    // See Other classes, Instruction::Sub, Instruction::UDiv,
+                    // Instruction::SDiv
+                    auto *ptr = dyn_cast<User>(&inst);
+                    for (auto it = ptr->op_begin(); it != ptr->op_end(); ++it) {
+                        errs() << "\t" << *(*it) << "\n";
+                    }
+                }
             }
-          }
         }
-      }
-      return false;
+        return false;
     }
-  }; // end of Hello pass
+}; // end of Hello pass
 } // end of anonymous namespace
 
 char HelloPass::ID = 0;
