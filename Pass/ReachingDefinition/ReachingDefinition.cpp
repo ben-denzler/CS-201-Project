@@ -28,39 +28,19 @@ struct ReachingDefinition : public FunctionPass {
         errs() << "ReachingDefinition: ";
         errs() << F.getName() << "\n";
 
-        // Iterates over basic blocks of the function
-        for (auto &basic_block : F) {            
-            // Iterates over instructions in a basic block
-            for (auto &inst : basic_block) {
-                errs() << inst << "\n";
-                if (inst.getOpcode() == Instruction::Load) {
-                    errs() << "This is Load" << "\n";
-                }
+        unsigned instr_index = 0;
+
+        for (auto &basic_block : F) {  // Iterates over basic blocks of the function 
+            for (auto &inst : basic_block) {  // Iterates over instructions in a basic block
+                errs() << instr_index << ": " << inst << "\n";
+
                 if (inst.getOpcode() == Instruction::Store) {
                     errs() << "This is Store" << "\n";
+                    Value* storeDestination = inst.getOperand(1);
+                    errs() << "Store instr destination: " << *storeDestination << "\n";
                 }
-                if (inst.isBinaryOp()) {
-                    errs() << "Op Code:" << inst.getOpcodeName() << "\n";
-                    if (inst.getOpcode() == Instruction::Add) {
-                        errs() << "This is Addition" << "\n";
-                    }
-                    if (inst.getOpcode() == Instruction::Sub) {
-                        errs() << "This is Subtraction" << "\n";
-                    }
-                    if (inst.getOpcode() == Instruction::Mul) {
-                        errs() << "This is Multiplication" << "\n";
-                    }
-                    if (inst.getOpcode() == Instruction::SDiv) {
-                        errs() << "This is Division" << "\n";
-                    }
 
-                    // See Other classes, Instruction::Sub, Instruction::UDiv,
-                    // Instruction::SDiv
-                    auto *ptr = dyn_cast<User>(&inst);
-                    for (auto it = ptr->op_begin(); it != ptr->op_end(); ++it) {
-                        errs() << "\t" << *(*it) << "\n";
-                    }
-                }
+                instr_index++;
             }
         }
         return true;

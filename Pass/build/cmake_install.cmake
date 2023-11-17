@@ -1,4 +1,4 @@
-# Install script for directory: /home/benja/CS-201-Project/CS-201-Project/Pass/HelloPass
+# Install script for directory: /home/benja/CS-201-Project/CS-201-Project/Pass/ReachingDefinition
 
 # Set the install prefix
 if(NOT DEFINED CMAKE_INSTALL_PREFIX)

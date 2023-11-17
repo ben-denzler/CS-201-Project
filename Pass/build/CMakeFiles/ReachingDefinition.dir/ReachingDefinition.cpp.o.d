@@ -1,5 +1,5 @@
-CMakeFiles/HelloPass.dir/HelloPass.cpp.o: \
- /home/benja/CS-201-Project/CS-201-Project/Pass/HelloPass/HelloPass.cpp \
+CMakeFiles/ReachingDefinition.dir/ReachingDefinition.cpp.o: \
+ /home/benja/CS-201-Project/CS-201-Project/Pass/ReachingDefinition/ReachingDefinition.cpp \
  /usr/include/stdc-predef.h \
  /home/benja/CS-201-Project/LLVM/install/include/llvm/IR/CFG.h \
  /home/benja/CS-201-Project/LLVM/install/include/llvm/ADT/GraphTraits.h \
@@ -284,18 +284,35 @@ CMakeFiles/HelloPass.dir/HelloPass.cpp.o: \
  /home/benja/CS-201-Project/LLVM/install/include/llvm/Support/MD5.h \
  /home/benja/CS-201-Project/LLVM/install/include/llvm/Support/Endian.h \
  /home/benja/CS-201-Project/LLVM/install/include/llvm/IR/OperandTraits.h \
- /home/benja/CS-201-Project/LLVM/install/include/llvm/IR/Instructions.h \
- /home/benja/CS-201-Project/LLVM/install/include/llvm/IR/InstrTypes.h \
+ /home/benja/CS-201-Project/LLVM/install/include/llvm/IR/IRBuilder.h \
+ /home/benja/CS-201-Project/LLVM/install/include/llvm/IR/ConstantFolder.h \
  /home/benja/CS-201-Project/LLVM/install/include/llvm/IR/Constants.h \
+ /home/benja/CS-201-Project/LLVM/install/include/llvm/IR/InstrTypes.h \
+ /home/benja/CS-201-Project/LLVM/install/include/llvm/IR/IRBuilderFolder.h \
+ /home/benja/CS-201-Project/LLVM/install/include/llvm/IR/DataLayout.h \
+ /home/benja/CS-201-Project/LLVM/install/include/llvm/IR/DebugInfoMetadata.h \
+ /home/benja/CS-201-Project/LLVM/install/include/llvm/ADT/BitmaskEnum.h \
+ /home/benja/CS-201-Project/LLVM/install/include/llvm/BinaryFormat/Dwarf.h \
+ /home/benja/CS-201-Project/LLVM/install/include/llvm/Support/Format.h \
+ /home/benja/CS-201-Project/LLVM/install/include/llvm/Support/FormatVariadicDetails.h \
+ /home/benja/CS-201-Project/LLVM/install/include/llvm/ADT/Triple.h \
+ /home/benja/CS-201-Project/LLVM/install/include/llvm/BinaryFormat/Dwarf.def \
+ /home/benja/CS-201-Project/LLVM/install/include/llvm/IR/DebugInfoFlags.def \
+ /home/benja/CS-201-Project/LLVM/install/include/llvm/IR/GlobalVariable.h \
+ /home/benja/CS-201-Project/LLVM/install/include/llvm/IR/Instructions.h \
+ /home/benja/CS-201-Project/LLVM/install/include/llvm/IR/IntrinsicInst.h \
+ /home/benja/CS-201-Project/LLVM/install/include/llvm/IR/FPEnv.h \
+ /home/benja/CS-201-Project/LLVM/install/include/llvm/IR/Intrinsics.h \
+ /home/benja/CS-201-Project/LLVM/install/include/llvm/IR/IntrinsicEnums.inc \
  /home/benja/CS-201-Project/LLVM/install/include/llvm/IR/Module.h \
  /home/benja/CS-201-Project/LLVM/install/include/llvm/IR/Comdat.h \
- /home/benja/CS-201-Project/LLVM/install/include/llvm/IR/DataLayout.h \
  /home/benja/CS-201-Project/LLVM/install/include/llvm/IR/GlobalAlias.h \
  /home/benja/CS-201-Project/LLVM/install/include/llvm/IR/GlobalIndirectSymbol.h \
  /home/benja/CS-201-Project/LLVM/install/include/llvm/IR/GlobalIFunc.h \
- /home/benja/CS-201-Project/LLVM/install/include/llvm/IR/GlobalVariable.h \
  /home/benja/CS-201-Project/LLVM/install/include/llvm/IR/ProfileSummary.h \
  /home/benja/CS-201-Project/LLVM/install/include/llvm/Support/CodeGen.h \
+ /home/benja/CS-201-Project/LLVM/install/include/llvm/IR/Operator.h \
+ /home/benja/CS-201-Project/LLVM/install/include/llvm/IR/ValueHandle.h \
  /home/benja/CS-201-Project/LLVM/install/include/llvm/Pass.h \
  /home/benja/CS-201-Project/LLVM/install/include/llvm/PassAnalysisSupport.h \
  /home/benja/CS-201-Project/LLVM/install/include/llvm/PassSupport.h \
@@ -307,4 +324,50 @@ CMakeFiles/HelloPass.dir/HelloPass.cpp.o: \
  /home/benja/CS-201-Project/LLVM/install/include/llvm/ADT/FunctionExtras.h \
  /usr/include/c++/11/ciso646 /usr/include/c++/11/mutex \
  /usr/include/c++/11/bits/std_mutex.h \
- /usr/include/c++/11/bits/unique_lock.h /usr/include/c++/11/shared_mutex
+ /usr/include/c++/11/bits/unique_lock.h /usr/include/c++/11/shared_mutex \
+ /home/benja/CS-201-Project/LLVM/install/include/llvm/Transforms/Utils/BasicBlockUtils.h \
+ /home/benja/CS-201-Project/LLVM/install/include/llvm/ADT/SetVector.h \
+ /home/benja/CS-201-Project/LLVM/install/include/llvm/Analysis/DomTreeUpdater.h \
+ /home/benja/CS-201-Project/LLVM/install/include/llvm/IR/Dominators.h \
+ /home/benja/CS-201-Project/LLVM/install/include/llvm/ADT/DepthFirstIterator.h \
+ /usr/include/c++/11/set /usr/include/c++/11/bits/stl_set.h \
+ /usr/include/c++/11/bits/stl_multiset.h \
+ /home/benja/CS-201-Project/LLVM/install/include/llvm/IR/PassManager.h \
+ /home/benja/CS-201-Project/LLVM/install/include/llvm/ADT/TinyPtrVector.h \
+ /home/benja/CS-201-Project/LLVM/install/include/llvm/IR/PassInstrumentation.h \
+ /home/benja/CS-201-Project/LLVM/install/include/llvm/ADT/Any.h \
+ /home/benja/CS-201-Project/LLVM/install/include/llvm/IR/PassManagerInternal.h \
+ /home/benja/CS-201-Project/LLVM/install/include/llvm/Support/Debug.h \
+ /home/benja/CS-201-Project/LLVM/install/include/llvm/Support/TimeProfiler.h \
+ /home/benja/CS-201-Project/LLVM/install/include/llvm/Support/Error.h \
+ /home/benja/CS-201-Project/LLVM/install/include/llvm-c/Error.h \
+ /home/benja/CS-201-Project/LLVM/install/include/llvm/ADT/StringExtras.h \
+ /home/benja/CS-201-Project/LLVM/install/include/llvm/ADT/SmallString.h \
+ /home/benja/CS-201-Project/LLVM/install/include/llvm/Support/ErrorOr.h \
+ /home/benja/CS-201-Project/LLVM/install/include/llvm/Support/TypeName.h \
+ /usr/include/c++/11/list /usr/include/c++/11/bits/stl_list.h \
+ /usr/include/c++/11/bits/list.tcc \
+ /home/benja/CS-201-Project/LLVM/install/include/llvm/Support/GenericDomTree.h \
+ /home/benja/CS-201-Project/LLVM/install/include/llvm/Support/CFGDiff.h \
+ /home/benja/CS-201-Project/LLVM/install/include/llvm/Support/CFGUpdate.h \
+ /home/benja/CS-201-Project/LLVM/install/include/llvm/Analysis/LoopInfo.h \
+ /home/benja/CS-201-Project/LLVM/install/include/llvm/Support/Allocator.h \
+ /usr/include/c++/11/fstream /usr/include/c++/11/istream \
+ /usr/include/c++/11/ios /usr/include/c++/11/bits/basic_ios.h \
+ /usr/include/c++/11/bits/locale_facets.h /usr/include/c++/11/cwctype \
+ /usr/include/wctype.h /usr/include/x86_64-linux-gnu/bits/wctype-wchar.h \
+ /usr/include/x86_64-linux-gnu/c++/11/bits/ctype_base.h \
+ /usr/include/x86_64-linux-gnu/c++/11/bits/ctype_inline.h \
+ /usr/include/c++/11/bits/locale_facets.tcc \
+ /usr/include/c++/11/bits/basic_ios.tcc /usr/include/c++/11/ostream \
+ /usr/include/c++/11/bits/ostream.tcc \
+ /usr/include/c++/11/bits/istream.tcc /usr/include/c++/11/bits/codecvt.h \
+ /usr/include/x86_64-linux-gnu/c++/11/bits/basic_file.h \
+ /usr/include/x86_64-linux-gnu/c++/11/bits/c++io.h \
+ /usr/include/c++/11/bits/fstream.tcc /usr/include/c++/11/queue \
+ /usr/include/c++/11/deque /usr/include/c++/11/bits/stl_deque.h \
+ /usr/include/c++/11/bits/deque.tcc /usr/include/c++/11/bits/stl_queue.h \
+ /usr/include/c++/11/unordered_map /usr/include/c++/11/bits/hashtable.h \
+ /usr/include/c++/11/bits/hashtable_policy.h \
+ /usr/include/c++/11/bits/enable_special_members.h \
+ /usr/include/c++/11/bits/unordered_map.h
