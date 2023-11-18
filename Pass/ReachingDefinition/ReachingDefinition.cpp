@@ -20,6 +20,12 @@ using namespace std;
 
 #define DEBUG_TYPE "ReachingDefinition"
 
+vector<unsigned> sortAndRemoveDuplicates(vector<unsigned> vec) {
+    set<unsigned> vecAsSet(vec.begin(), vec.end());
+    vector<unsigned> temp(vecAsSet.begin(), vecAsSet.end());
+    return temp;
+}
+
 namespace {
 struct ReachingDefinition : public FunctionPass {
     static char ID;
@@ -38,25 +44,19 @@ struct ReachingDefinition : public FunctionPass {
             errs() << "Block " << blockNum++ << ":\n";
 
             for (auto &inst : basic_block) {  // Iterates over instructions in a basic block
-                errs() << instrIndex << ": " << inst << "\n";
+                errs() << instrIndex << ": " << inst;
 
                 if (inst.getOpcode() == Instruction::Store) {
-                    errs() << " This is Store" << "\n";
                     Value* storeDestination = inst.getOperand(1);
-                    errs() << " Store instr destination: " << *storeDestination << "\n";
+                    errs() << " (store w/ destination: " << *storeDestination << ")";
                     storeInstructionIndices.push_back(instrIndex);
                     storeInstructionDestVars.push_back(storeDestination);
                 }
+                errs() << "\n";
                 instrIndex++;
             }
             errs() << "\n";
         }
-
-        // // Check the vector of indexes for store instructions
-        // errs() << "\n" << "storeInstructionIndices" << "\n";
-        // for (unsigned int i = 0; i < storeInstructionIndices.size(); i++) {
-        //     errs() << storeInstructionIndices.at(i) << "\n";
-        // }
 
         instrIndex = 0;
         blockNum = 0;
@@ -68,8 +68,6 @@ struct ReachingDefinition : public FunctionPass {
             vector<vector<unsigned>> GEN_KILLSETS = {};
             vector<unsigned> GEN = {};
             vector<unsigned> KILL = {};
-
-            errs() << "Block " << blockNum << ":\n";
 
             for (auto &inst : basic_block) {  // Iterates over instructions in a basic block
                 if (inst.getOpcode() == Instruction::Store) {
@@ -85,38 +83,91 @@ struct ReachingDefinition : public FunctionPass {
                 }
                 instrIndex++;
             }
-
             blockGenSets.push_back(GEN);
             blockKillSets.push_back(KILL);
+            blockNum++;
+        }
 
-            // Check the vector of GEN
-            errs() << "GEN: ";
-            for (unsigned int i = 0; i < GEN.size(); i++) {
-                errs() << GEN.at(i) << " ";
+        vector<unsigned> setTemp = {};
+        vector<vector<unsigned>> blockInSets(blockNum, setTemp);
+        vector<vector<unsigned>> blockOutSets(blockNum, setTemp);
+
+        instrIndex = 0;
+        blockNum = 0;
+
+        // Create the IN and OUT set for each block
+        for (auto &basic_block : F) {
+            vector<unsigned> IN = {};
+            vector<unsigned> OUT = {};
+
+            // Initial block
+            if (blockNum == 0) {
+                IN = {};
             }
-            // Check the vector of KILL
-            errs() << "\nKILL: ";
-            for (unsigned int i = 0; i < KILL.size(); i++) {
-                errs() << KILL.at(i) << " ";
+            else {
+                for (auto *pred: predecessors(&basic_block)) {
+                    // Calculate IN, UNION all OUTs of predecessors
+                    unsigned predBlockNum = 0;
+                    for (auto &funcBlock : F) {
+                        if (&funcBlock == pred) {
+                            break;
+                        }
+                        predBlockNum++;
+                    }
+                    for (unsigned int i = 0; i < blockOutSets.at(predBlockNum).size(); i++) {
+                        IN.push_back(blockOutSets.at(predBlockNum).at(i));
+                    }
+                }
             }
-            errs() << "\n\n";
+
+            set<unsigned> currGen(blockGenSets.at(blockNum).begin(), blockGenSets.at(blockNum).end());
+            set<unsigned> currKill(blockKillSets.at(blockNum).begin(), blockKillSets.at(blockNum).end());
+            set<unsigned> currIn(IN.begin(), IN.end());
+            set<unsigned> currOut(OUT.begin(), OUT.end());
+            // OUT = blockGenSets.at(blockNum) + (IN - blockKillSets.at(blockNum))
+            set_difference(currIn.begin(), currIn.end(), currKill.begin(), currKill.end(), inserter(currOut, currOut.begin()));
+            set_union(currGen.begin(), currGen.end(), currOut.begin(), currOut.end(), inserter(currOut, currOut.begin()));
+            
+            // Cast out from a set to a vector
+            vector<unsigned> temp(currOut.begin(), currOut.end());
+            OUT = temp;
+
+            // Update sets
+            blockInSets.at(blockNum) = IN;
+            blockOutSets.at(blockNum) = OUT;
 
             blockNum++;
         }
 
-        // Print the GEN and KILL sets for each block
+        // Print IN, OUT, GEN, KILL for each block
         for (unsigned int i = 0; i < blockGenSets.size(); ++i) {
-            errs() << "GEN for block #" << i << ": ";
-            for (unsigned int j = 0; j < blockGenSets.at(i).size(); ++j) {
-                errs() << blockGenSets.at(i).at(j) << " ";
+            errs() << "\nBlock " << i << ":";
+
+            errs() << "\n  IN: ";
+            blockInSets.at(i) = sortAndRemoveDuplicates(blockInSets.at(i));
+            for (unsigned int j = 0; j < blockInSets.at(i).size(); ++j) {
+                errs() << blockInSets.at(i).at(j) << " ";
             }
-            errs() << "\nKILL for block #" << i << ": ";
-            for (unsigned int k = 0; k < blockKillSets.at(i).size(); ++k) {
-                errs() << blockKillSets.at(i).at(k) << " ";
+
+            errs() << "\n  OUT: ";
+            blockOutSets.at(i) = sortAndRemoveDuplicates(blockOutSets.at(i));
+            for (unsigned int k = 0; k < blockOutSets.at(i).size(); ++k) {
+                errs() << blockOutSets.at(i).at(k) << " ";
+            }
+
+            errs() << "\n  GEN: ";
+            blockGenSets.at(i) = sortAndRemoveDuplicates(blockGenSets.at(i));
+            for (unsigned int m = 0; m < blockGenSets.at(i).size(); ++m) {
+                errs() << blockGenSets.at(i).at(m) << " ";
+            }
+
+            errs() << "\n  KILL: ";
+            blockKillSets.at(i) = sortAndRemoveDuplicates(blockKillSets.at(i));
+            for (unsigned int n = 0; n < blockKillSets.at(i).size(); ++n) {
+                errs() << blockKillSets.at(i).at(n) << " ";
             }
             errs() << "\n";
         }
-
         return true;
     }
 }; // end of struct ReachingDefinition
