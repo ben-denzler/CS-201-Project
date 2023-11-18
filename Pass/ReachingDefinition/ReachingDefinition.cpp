@@ -100,39 +100,43 @@ struct ReachingDefinition : public FunctionPass {
             vector<unsigned> IN = {};
             vector<unsigned> OUT = {};
 
-            // Initial block
+            // Initial block has no IN
             if (blockNum == 0) {
                 IN = {};
             }
             else {
+                // Use the block's predecessors for IN
                 for (auto *pred: predecessors(&basic_block)) {
-                    // Calculate IN, UNION all OUTs of predecessors
                     unsigned predBlockNum = 0;
                     for (auto &funcBlock : F) {
+                        // Find block number for predecessor
                         if (&funcBlock == pred) {
                             break;
                         }
                         predBlockNum++;
                     }
+                    // IN is the OUT of the predecessor
                     for (unsigned int i = 0; i < blockOutSets.at(predBlockNum).size(); i++) {
                         IN.push_back(blockOutSets.at(predBlockNum).at(i));
                     }
                 }
             }
 
+            // Convert GEN, KILL, IN, OUT to sets to sort and remove duplicates
             set<unsigned> currGen(blockGenSets.at(blockNum).begin(), blockGenSets.at(blockNum).end());
             set<unsigned> currKill(blockKillSets.at(blockNum).begin(), blockKillSets.at(blockNum).end());
             set<unsigned> currIn(IN.begin(), IN.end());
             set<unsigned> currOut(OUT.begin(), OUT.end());
-            // OUT = blockGenSets.at(blockNum) + (IN - blockKillSets.at(blockNum))
+
+            // OUT = (IN - KILL) + GEN; result is stored in currOut
             set_difference(currIn.begin(), currIn.end(), currKill.begin(), currKill.end(), inserter(currOut, currOut.begin()));
             set_union(currGen.begin(), currGen.end(), currOut.begin(), currOut.end(), inserter(currOut, currOut.begin()));
             
-            // Cast out from a set to a vector
+            // Turn OUT back into a vector
             vector<unsigned> temp(currOut.begin(), currOut.end());
             OUT = temp;
 
-            // Update sets
+            // Update IN and OUT for the block
             blockInSets.at(blockNum) = IN;
             blockOutSets.at(blockNum) = OUT;
 
