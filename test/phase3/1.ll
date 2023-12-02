@@ -40,6 +40,17 @@ define dso_local void @test() #0 {
   %23 = load i32, i32* %3, align 4
   %24 = add nsw i32 %22, %23
   store i32 %24, i32* %1, align 4
+  %25 = load i32, i32* %3, align 4
+  %26 = mul nsw i32 1, %25
+  store i32 %26, i32* %6, align 4
+  %27 = load i32, i32* %1, align 4
+  %28 = load i32, i32* %3, align 4
+  %29 = mul nsw i32 %27, %28
+  store i32 %29, i32* %4, align 4
+  %30 = load i32, i32* %2, align 4
+  %31 = load i32, i32* %4, align 4
+  %32 = sdiv i32 %30, %31
+  store i32 %32, i32* %5, align 4
   ret void
 }
 

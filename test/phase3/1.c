@@ -1,4 +1,3 @@
-
 void test() {
   int a, b, c, d, e, f;
   c = f;
@@ -9,4 +8,7 @@ void test() {
     e = b + c;
   }
   a = b + c;
+  f = 1 * c;
+  d = a * c;
+  e = b / d;
 }
