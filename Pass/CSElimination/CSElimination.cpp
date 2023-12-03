@@ -280,23 +280,25 @@ struct CSElimination : public FunctionPass {
                         }
                         predBlockNum++;
                     }
-                    // Create OutSets
+                    // Start with all of the first predecessor's OUT expressions
                     if (predecessorIndex == 0) {
                         for (unsigned int i = 0; i < blockOutSets.at(predBlockNum).size(); i++) {
                             currInSet.push_back(blockOutSets.at(predBlockNum).at(i));
                         }
                     }
                     else {
+                        // First predecessor's OUTs must be in all other predecessors' OUTs
                         for (unsigned int i = 0; i < currInSet.size(); i++) {
-                            bool isInBothOuts = false;
+                            bool isInAllPredecessors = false;
                             for (unsigned int j = 0; j < blockOutSets.at(predBlockNum).size(); j++) {
                                 if (expsEqualWithoutIndex(*currInSet.at(i), *blockOutSets.at(predBlockNum).at(j))) {
-                                    isInBothOuts = true;
+                                    isInAllPredecessors = true;
                                     break;
                                 }
-                            }   
-                            if (!isInBothOuts) {
-                                // delete expression from currInSet
+                            }
+                            if (!isInAllPredecessors) {
+                                // Delete expression from currInSet
+                                // Send current expression to back, then pop
                                 Expression* temp = currInSet.at(i);
                                 currInSet.at(i) = currInSet.at(currInSet.size() - 1);
                                 currInSet.at(currInSet.size() - 1) = temp;
@@ -304,23 +306,20 @@ struct CSElimination : public FunctionPass {
                             }
                         }
                     }
-                    
                     predecessorIndex++;
                 }
             }
 
-            // Recalculate the currKillSet
+            // Update currKillSet to consider predecessors' OUT expressions
             vector<Expression*> currKilledSet = blockKilledSets.at(blockNum); // Current block's KILL set
-
             for (auto& inst : basic_block) { // Iterates over instructions in a basic block
                 // Find statements A = ~ where A is an operand in this block's expressions
                 if (inst.getOpcode() == Instruction::Store) {
                     string storeDestination = GetValueOperand(inst.getOperand(1), 1);
                     errs() << "  Found A = B op C where A is \'" << storeDestination << "\'\n";
 
-                    // Check if an expression in this block used the same storeDestination as an operand
-                    unsigned numInExpsInBlock = currInSet.size();
-                    for (unsigned j = 0; j < numInExpsInBlock; j++) {
+                    // Check if an expression in this block used the same storeDestination as an IN's operand
+                    for (unsigned j = 0; j < currInSet.size(); j++) {
                         Expression* inSetExpression = currInSet.at(j);
                         errs() << "    Checking IN expression " << j << " in block " << blockNum << "...\n";
 
@@ -344,6 +343,7 @@ struct CSElimination : public FunctionPass {
             }
 
             // Print KILL sets for each block
+            errs() << "\n";
             errs() << "Print KILL sets for each block\n";
             errs() << "OLD Block " << blockNum << " KILL set:\n";
             for (unsigned i = 0; i < blockKilledSets.at(blockNum).size(); i++) {
@@ -351,7 +351,9 @@ struct CSElimination : public FunctionPass {
                 blockKilledSets.at(blockNum).at(i)->print();
             }
             errs() << "\n";
+
             blockKilledSets.at(blockNum) = currKilledSet;
+
             errs() << "NEW Block " << blockNum << " KILL set:\n";
             for (unsigned i = 0; i < blockKilledSets.at(blockNum).size(); i++) {
                 errs() << "  ";
@@ -361,8 +363,11 @@ struct CSElimination : public FunctionPass {
 
             // OUT = (IN - KILL) + GEN
             // currOutSet = (currInSet - currKilledSet) + blockGenSets.at(blockNum);
+
             currOutSet = blockGenSets.at(blockNum);
-            vector<Expression*> difference = {};
+            vector<Expression*> inMinusKill = {};
+
+            // Find IN - KILL for current block
             for (unsigned int i = 0; i < currInSet.size(); i++) {
                 bool shouldKill = false;
                 for (unsigned int j = 0; j < currKilledSet.size(); j++) {
@@ -370,46 +375,37 @@ struct CSElimination : public FunctionPass {
                         shouldKill = true;
                     }
                 }
+                // Save expressions in IN that are not in KILL
                 if (!shouldKill) {
-                    difference.push_back(currInSet.at(i));
+                    inMinusKill.push_back(currInSet.at(i));
                 }
             }
 
             errs() << "Difference between IN and KILL of block " << blockNum << "\n";
-            for (unsigned int i = 0; i < difference.size(); i++) {
-                difference.at(i)->print();
+            for (unsigned int i = 0; i < inMinusKill.size(); i++) {
+                inMinusKill.at(i)->print();
             }
 
-            for (unsigned int i = 0; i < difference.size(); i++) {
+            // Find GEN + (IN - KILL)
+            for (unsigned int i = 0; i < inMinusKill.size(); i++) {
                 bool alreadyExists = false;
                 for (unsigned int j = 0; j < currOutSet.size(); j++) {
-                    if (difference.at(i) == currOutSet.at(j)) {
+                    if (inMinusKill.at(i) == currOutSet.at(j)) {
                         alreadyExists = true;
                     }
                 }
                 if (!alreadyExists) {
-                    currOutSet.push_back(difference.at(i));
+                    currOutSet.push_back(inMinusKill.at(i));
                 }
             }
 
-            // set<Expression*> currGen(blockGenSets.at(blockNum).begin(), blockGenSets.at(blockNum).end());
-            // set<Expression*> currKill(currKilledSet.begin(), currKilledSet.end());
-            // set<Expression*> currIn(currInSet.begin(), currInSet.end());
-            // set<Expression*> currOut(currOutSet.begin(), currOutSet.end());
-
-            // set_difference(currIn.begin(), currIn.end(), currKill.begin(), currKill.end(), inserter(currOut, currOut.begin()), ExprEqualityWithoutIndex());
-            // set_union(currGen.begin(), currGen.end(), currOut.begin(), currOut.end(), inserter(currOut, currOut.begin()));
-
-            // vector<Expression*> outResult(currOut.begin(), currOut.end());
-            // currOutSet = outResult;
-
-            // Add IN and OUT set for that particular block
+            // Add IN and OUT sets for the current block
             blockInSets.push_back(currInSet);
             blockOutSets.push_back(currOutSet);
             blockNum++;
         }
 
-        // Print all IN, GEN, KILL, and OUT sets for ever block
+        // Print all IN, GEN, KILL, and OUT sets for every block
         for (unsigned i = 0; i < blockInSets.size(); ++i) {
             errs() << "\nBlock " << i << " IN set:\n";
             for (unsigned j = 0; j < blockInSets.at(i).size(); ++j) {
