@@ -7,8 +7,10 @@ void test() {
   } else {
     e = b + c;
   }
+  b = 20;
   a = b + c;
   f = 1 * c;
   d = a * c;
   e = b / d;
+  b = e + c;
 }

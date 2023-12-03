@@ -36,6 +36,7 @@ define dso_local void @test() #0 {
   br label %21
 
 21:                                               ; preds = %17, %10
+  store i32 20, i32* %2, align 4
   %22 = load i32, i32* %2, align 4
   %23 = load i32, i32* %3, align 4
   %24 = add nsw i32 %22, %23
@@ -51,6 +52,10 @@ define dso_local void @test() #0 {
   %31 = load i32, i32* %4, align 4
   %32 = sdiv i32 %30, %31
   store i32 %32, i32* %5, align 4
+  %33 = load i32, i32* %5, align 4
+  %34 = load i32, i32* %3, align 4
+  %35 = add nsw i32 %33, %34
+  store i32 %35, i32* %2, align 4
   ret void
 }
 
