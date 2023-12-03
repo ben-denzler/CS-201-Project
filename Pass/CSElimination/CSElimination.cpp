@@ -11,6 +11,8 @@
 #include <set>
 #include <string>
 #include <unordered_map>
+#include <iostream>
+#include <fstream>
 
 using namespace llvm;
 using namespace std;
@@ -18,10 +20,38 @@ using namespace std;
 #define DEBUG_TYPE "CSElimination"
 
 namespace {
+vector<unsigned> AddNumToVectorElements(vector<unsigned> vec, unsigned int val) {
+    for (unsigned int i = 0; i < vec.size(); i++) {
+        vec.at(i) = vec.at(i) + val;
+    }
+    return vec;
+}
+
 vector<unsigned> sortAndRemoveDuplicates(vector<unsigned> vec) {
     set<unsigned> vecAsSet(vec.begin(), vec.end());
     vector<unsigned> temp(vecAsSet.begin(), vecAsSet.end());
     return temp;
+}
+
+string GetInstrDestination(Instruction& instr, unsigned opNumber) {
+    string temp = "";
+    raw_string_ostream stream(temp);
+    instr.print(stream);
+    string instrString = stream.str();
+
+    if (opNumber == 1) {
+        unsigned instrPercentIndex = instrString.find("%", 0);
+        unsigned instrEqualIndex = instrString.find(" =", instrPercentIndex); // Find index of " ="
+        return instrString.substr(instrPercentIndex, instrEqualIndex - instrPercentIndex);
+    }
+    // Isolate operand for store instructions
+    // For 'Store i32 %10, i32* %2, align 4 (store w/ destination:   %2 = alloca i32, align 4)', isolate %10
+    else if (opNumber == 2) {
+        unsigned instrPercentIndex = instrString.find("%", 0);              // Find index of first %
+        unsigned instrCommaIndex = instrString.find(", ", instrPercentIndex); // Find index of second ,
+        return instrString.substr(instrPercentIndex, instrCommaIndex - instrPercentIndex);
+    }
+    return "ERROR";
 }
 
 string GetValueOperand(const Value* value, unsigned opNumber) {
@@ -34,9 +64,10 @@ string GetValueOperand(const Value* value, unsigned opNumber) {
 
     string operand1 = "";
 
-    // Isolate operand for store instructions
+    // Isolate operand for assignment instructions
+    // For '%10 = sub nsw i32 %8, %9', isolate %10
     if (opNumber == 1) {
-        unsigned op1PercentIndex = op1.find("%", 0);              // Find index of second %
+        unsigned op1PercentIndex = op1.find("%", 0);              // Find index of first %
         unsigned op1CommaIndex = op1.find(" =", op1PercentIndex); // Find index of second ,
         operand1 = op1.substr(op1PercentIndex, op1CommaIndex - op1PercentIndex);
     }
@@ -406,22 +437,23 @@ struct CSElimination : public FunctionPass {
 
         // Print all IN, GEN, KILL, and OUT sets for every block
         for (unsigned i = 0; i < blockInSetsAvail.size(); ++i) {
-            errs() << "\nBlock " << i << " IN set:\n";
+            errs() << "\nBlock " << i << " available expressions:";
+            errs() << "\n  IN: ";
             for (unsigned j = 0; j < blockInSetsAvail.at(i).size(); ++j) {
                 errs() << "  ";
                 blockInSetsAvail.at(i).at(j)->print();
             }
-            errs() << "Block " << i << " GEN set:\n";
+            errs() << "  GEN: ";
             for (unsigned j = 0; j < blockGenSetsAvail.at(i).size(); ++j) {
                 errs() << "  ";
                 blockGenSetsAvail.at(i).at(j)->print();
             }
-            errs() << "Block " << i << " KILL set:\n";
+            errs() << "  KILL: ";
             for (unsigned j = 0; j < blockKilledSetsAvail.at(i).size(); ++j) {
                 errs() << "  ";
                 blockKilledSetsAvail.at(i).at(j)->print();
             }
-            errs() << "Block " << i << " OUT set:\n";
+            errs() << "  OUT: ";
             for (unsigned j = 0; j < blockOutSetsAvail.at(i).size(); ++j) {
                 errs() << "  ";
                 blockOutSetsAvail.at(i).at(j)->print();
@@ -429,28 +461,165 @@ struct CSElimination : public FunctionPass {
         }
         errs() << "\n";
 
-        blockNum = 0;
-        instructionIndex = 0;
-
         // ===============================
         //    FIND REACHING DEFINITIONS
         // ===============================
 
+        errs() << "\nFinding Reaching Definitions for function: " << F.getName() << "\n";
 
+        vector<unsigned> storeInstructionIndices;
+        vector<Value*> storeInstructionDestVars;
+        unsigned instrIndex = 0;
+        blockNum = 0;
 
+        // First Pass: Get all of the indexes and destination variables of the store instructions
+        for (auto &basic_block : F) {  // Iterates over basic blocks of the function 
+            errs() << "Block " << blockNum++ << ":\n";
+            for (auto &inst : basic_block) {  // Iterates over instructions in a basic block
+                errs() << instrIndex << ": " << inst;
+                if (inst.getOpcode() == Instruction::Store) {
+                    Value* storeDestination = inst.getOperand(1);
+                    errs() << " (store w/ destination: " << *storeDestination << ")";
+                    storeInstructionIndices.push_back(instrIndex);
+                    storeInstructionDestVars.push_back(storeDestination);
+                }
+                errs() << "\n";
+                instrIndex++;
+            }
+            errs() << "\n";
+        }
+
+        instrIndex = 0;
+        blockNum = 0;
+        vector<vector<unsigned>> blockGenSetsReach = {};
+        vector<vector<unsigned>> blockKillSetsReach = {};
+
+        // Second Pass: Add to GEN and KILL sets
+        for (auto &basic_block : F) {  // Iterates over basic blocks of the function 
+            vector<vector<unsigned>> GEN_KILLSETS = {};
+            vector<unsigned> GEN = {};
+            vector<unsigned> KILL = {};
+
+            for (auto &inst : basic_block) {  // Iterates over instructions in a basic block
+                if (inst.getOpcode() == Instruction::Store) {
+                    GEN.push_back(instrIndex);  // Each store instruction is a GEN
+                    Value* storeDestination = inst.getOperand(1);
+
+                    // Find other instructions that change the same variable; add them to block's KILL
+                    for (unsigned int i = 0; i < storeInstructionDestVars.size(); i++) {
+                        if ((storeInstructionDestVars.at(i) == storeDestination) && (storeInstructionIndices.at(i) != instrIndex)) {
+                            KILL.push_back(storeInstructionIndices.at(i));
+                        }
+                    }
+                }
+                instrIndex++;
+            }
+            blockGenSetsReach.push_back(GEN);
+            blockKillSetsReach.push_back(KILL);
+            blockNum++;
+        }
+
+        vector<unsigned> setTemp = {};
+        vector<vector<unsigned>> blockInSetsReach(blockNum, setTemp);
+        vector<vector<unsigned>> blockOutSetsReach(blockNum, setTemp);
+
+        instrIndex = 0;
+        blockNum = 0;
+
+        // Create the IN and OUT set for each block
+        for (auto &basic_block : F) {
+            vector<unsigned> IN = {};
+            vector<unsigned> OUT = {};
+
+            // Initial block has no IN
+            if (blockNum == 0) {
+                IN = {};
+            }
+            else {
+                // Use the block's predecessors for IN
+                for (auto *pred: predecessors(&basic_block)) {
+                    unsigned predBlockNum = 0;
+                    for (auto &funcBlock : F) {
+                        // Find block number for predecessor
+                        if (&funcBlock == pred) {
+                            break;
+                        }
+                        predBlockNum++;
+                    }
+                    // IN is the OUT of the predecessor
+                    for (unsigned int i = 0; i < blockOutSetsReach.at(predBlockNum).size(); i++) {
+                        IN.push_back(blockOutSetsReach.at(predBlockNum).at(i));
+                    }
+                }
+            }
+
+            // Convert GEN, KILL, IN, OUT to sets to sort and remove duplicates
+            set<unsigned> currGen(blockGenSetsReach.at(blockNum).begin(), blockGenSetsReach.at(blockNum).end());
+            set<unsigned> currKill(blockKillSetsReach.at(blockNum).begin(), blockKillSetsReach.at(blockNum).end());
+            set<unsigned> currIn(IN.begin(), IN.end());
+            set<unsigned> currOut(OUT.begin(), OUT.end());
+
+            // OUT = (IN - KILL) + GEN; result is stored in currOut
+            set_difference(currIn.begin(), currIn.end(), currKill.begin(), currKill.end(), inserter(currOut, currOut.begin()));
+            set_union(currGen.begin(), currGen.end(), currOut.begin(), currOut.end(), inserter(currOut, currOut.begin()));
+            
+            // Turn OUT back into a vector
+            vector<unsigned> temp(currOut.begin(), currOut.end());
+            OUT = temp;
+
+            // Update IN and OUT for the block
+            blockInSetsReach.at(blockNum) = IN;
+            blockOutSetsReach.at(blockNum) = OUT;
+
+            blockNum++;
+        }
+
+        // Print IN, OUT, GEN, KILL for each block
+        for (unsigned int i = 0; i < blockGenSetsReach.size(); ++i) {
+            errs() << "\nBlock " << i << " reaching definitions:";
+            errs() << "\n  IN: ";
+            blockInSetsReach.at(i) = sortAndRemoveDuplicates(blockInSetsReach.at(i));
+            for (unsigned int j = 0; j < blockInSetsReach.at(i).size(); ++j) {
+                errs() << blockInSetsReach.at(i).at(j) << " ";
+            }
+            errs() << "\n  GEN: ";
+            blockGenSetsReach.at(i) = sortAndRemoveDuplicates(blockGenSetsReach.at(i));
+            for (unsigned int m = 0; m < blockGenSetsReach.at(i).size(); ++m) {
+                errs() << blockGenSetsReach.at(i).at(m) << " ";
+            }
+            errs() << "\n  KILL: ";
+            blockKillSetsReach.at(i) = sortAndRemoveDuplicates(blockKillSetsReach.at(i));
+            for (unsigned int n = 0; n < blockKillSetsReach.at(i).size(); ++n) {
+                errs() << blockKillSetsReach.at(i).at(n) << " ";
+            }
+            errs() << "\n  OUT: ";
+            blockOutSetsReach.at(i) = sortAndRemoveDuplicates(blockOutSetsReach.at(i));
+            for (unsigned int k = 0; k < blockOutSetsReach.at(i).size(); ++k) {
+                errs() << blockOutSetsReach.at(i).at(k) << " ";
+            }
+            errs() << "\n";
+        }
+        
         // ===============================
         //    END REACHING DEFINITIONS
         // ===============================
+        
+        errs() << "\n";
+
+        blockNum = 0;
+        instructionIndex = 0;
 
         // PASS 5: transformation for CSElimination
-        errs() << "PASS 5: Transform for CSElimination";
+        errs() << "PASS 5: Transform for CSElimination\n";
+        vector <unsigned int> changeTheseLines = {};
+
         for (auto& basic_block : F) {
             for (auto& inst : basic_block) {
                 // If statement is A = B op C in block S
                 if (inst.getOpcode() == Instruction::Add || inst.getOpcode() == Instruction::Sub || inst.getOpcode() == Instruction::Mul || inst.getOpcode() == Instruction::SDiv) {
                     Value* op1 = inst.getOperand(0);
                     Value* op2 = inst.getOperand(1);
-                    errs() << "  Found A = B op C: op1 is \'" << *op1 << "\', op2 is \'" << *op2 << "\', opcode " << inst.getOpcode() << "\n";
+                    //errs() << "  Found A = B op C: op1 is \'" << *op1 << "\', op2 is \'" << *op2 << "\', opcode " << inst.getOpcode() << "\n";
 
                     // Both operands should look like '%22 = load i32, i32* %2, align 4'
                     // If either operand is NOT a load, it's an immediate; ignore those
@@ -460,27 +629,128 @@ struct CSElimination : public FunctionPass {
 
                         // Is the expression available at entry of this block?
                         bool expIsAvailableAtEntry = false;
+                        string availDestination = "";
+                        unsigned int availIndex = 0;
+                        vector<string> availDestinations = {};
+
+                        // For every available expression that matches, add its' destination to the vector availIndex
                         for (unsigned i = 0; i < blockInSetsAvail.at(blockNum).size(); ++i) {
-                            if (expsEqualWithoutIndex(exp, blockInSetsAvail.at(blockNum).at(i))) {
+                            if (expsEqualWithoutIndex(*exp, *blockInSetsAvail.at(blockNum).at(i))) {
                                 expIsAvailableAtEntry = true;
+                                availIndex = blockInSetsAvail.at(blockNum).at(i)->index;
+
+                                // Get the destination of the expression from the in set
+                                unsigned innerInstrIndex = 0;
+                                for (auto& basic_block : F) {
+                                    for (auto& inst : basic_block) {
+                                        // Find the line that matches the index then
+                                        if (innerInstrIndex == availIndex) {
+                                            availDestination = GetInstrDestination(inst, 1);
+                                            availDestinations.push_back(availDestination);
+                                        }
+                                        innerInstrIndex++;
+                                    }
+                                }
                                 break;
                             }
                         }
 
 
+                        if (expIsAvailableAtEntry) {
+                            errs() << "Looking for ";
+                            for (unsigned int i = 0; i < availDestinations.size(); i++) {
+                                errs() << availDestinations.at(i) << " ";
+                            }
+                            vector<unsigned> defsReachingBlock = blockInSetsReach.at(blockNum);  // Indices of instructions
+                            errs() << "Block " << blockNum << "\n";
+                            // Look at store instruction and grab the location of the value
+                            // ex: 11: store i32 %10, i32* %2, align 4, isolate %10
+                            for (unsigned i = 0; i < defsReachingBlock.size(); ++i) {
+                                unsigned innerInstrIndex = 0;
+                                for (auto& basic_block : F) {
+                                    for (auto& inst : basic_block) {
+                                        if (innerInstrIndex == defsReachingBlock.at(i)) {
+                                            errs() << "   " << innerInstrIndex << ": " << inst << "\n";
+                                            string reachingValue = GetInstrDestination(inst, 2);
+                                            for (unsigned int i = 0; i < availDestinations.size(); i++) {
+                                                errs() << "      Compare " << reachingValue << " with " << availDestinations.at(i) << "\n";
+                                                if (reachingValue == availDestinations.at(i)) {
+                                                    errs() << "******Found " << innerInstrIndex << ": " << inst << "\n";
+                                                    changeTheseLines.push_back(innerInstrIndex);
+                                                }
+                                            }
+                                        }
+                                        innerInstrIndex++;
+                                    }
+                                }
+                            }
+                        }
+
                     } else {
                         errs() << "  Found A = B op C, but A or B is an immediate value.\n";
                     }
+
                 }
                 instructionIndex++;
             }
             blockNum++;
         }
 
+        // Pass 6: Change the lines
+        unsigned innerInstrIndex = 0;
+        ofstream outputFile("optimizedCode.txt");
+        for (unsigned int i = 0; i < changeTheseLines.size(); i++) {
+            outputFile << "  %tmp" << i << " = alloca i32, align 4\n";
+            changeTheseLines = AddNumToVectorElements(changeTheseLines, 1);
+            innerInstrIndex++;
+        }
+
+        int lineChangedXTimes = 0;
+        int currVariableNum = 0;
+        for (auto& basic_block : F) {
+            for (auto& instr : basic_block) {
+                string temp = "";
+                raw_string_ostream stream(temp);
+                instr.print(stream);
+                string instrString = stream.str();
+                for (unsigned int i = 0; i < changeTheseLines.size(); i++) {
+                    if (changeTheseLines.at(i) == innerInstrIndex) {
+                        // Fix store line
+                        unsigned instrStringPercentIndex = instrString.find("%", 13);             // Find index of second %
+                        unsigned instrStringCommaIndex = instrString.find(",", instrStringPercentIndex); // Find index of second ,
+                        instrString.replace(instrStringPercentIndex, instrStringCommaIndex - instrStringPercentIndex, "%tmp" + to_string(i));
+                        outputFile << instrString << "\n";
+
+
+                        //Add load line
+                        outputFile <<  "  %" << ++currVariableNum << " = load i32, i32* %tmp" << to_string(i) << ", align 4\n";
+                        lineChangedXTimes++;
+                        break;
+                    }
+                }
+                if (lineChangedXTimes > 0 && (isa<LoadInst>(instr) || isa<AllocaInst>(instr)) || isa<BinaryOperator>(instr) || isa<ICmpInst>(instr)) {
+                        unsigned instrStringPercentIndex = instrString.find("%", 0);             // Find index of second %
+                        unsigned instrStringCommaIndex = instrString.find(" =", instrStringPercentIndex); // Find index of second =
+                        currVariableNum = stoi(instrString.substr(instrStringPercentIndex + 1, instrStringCommaIndex - instrStringPercentIndex));
+                        errs() << to_string(currVariableNum) << " ";
+
+                        instrStringPercentIndex = instrString.find("%", 0);             // Find index of second %
+                        instrStringCommaIndex = instrString.find(" =", instrStringPercentIndex); // Find index of second =
+                        instrString.replace(instrStringPercentIndex, instrStringCommaIndex - instrStringPercentIndex, "%" + to_string(currVariableNum + lineChangedXTimes));
+                        outputFile << instrString << "\n";
+                }
+                else {
+                    outputFile << instrString << "\n";
+                }
+
+                innerInstrIndex++;
+            }
+        }
+
         return true; // Indicate this is a Transform pass
     }
 }; // end of struct CSElimination
-} // end of anonymous namespace
+}  // end of anonymous namespace
 
 char CSElimination::ID = 0;
 static RegisterPass<CSElimination> X("CSElimination", "CSElimination Pass",
