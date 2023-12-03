@@ -53,7 +53,12 @@ struct Expression {
     // Overload equality operator to compare Expressions
     // Indices can be different
     bool operator==(const Expression& exp) const {
-        return (operand1 == exp.operand1) && (operand2 == exp.operand2) && (opcode == exp.opcode);
+        return (operand1 == exp.operand1) && (operand2 == exp.operand2) && (opcode == exp.opcode) && (index == exp.index);
+    }
+
+    // For set operations
+    bool operator<(const Expression& exp) const {
+        return index < exp.index;
     }
 
     Expression(string op1Value, string op2Value, string opnum, unsigned loc) {
@@ -89,6 +94,10 @@ struct Expression {
     }
 };
 
+bool expsEqualWithoutIndex(const Expression& exp1, const Expression& exp2) {
+    return (exp1.operand1 == exp2.operand1) && (exp1.operand2 == exp2.operand2) && (exp1.opcode == exp2.opcode);
+}
+
 struct CSElimination : public FunctionPass {
     static char ID;
     CSElimination() : FunctionPass(ID) {}
@@ -96,10 +105,11 @@ struct CSElimination : public FunctionPass {
     bool runOnFunction(Function& F) override {
         errs() << "\nFunction: " << F.getName() << "\n";
 
-        // Holds GEN sets for each basic block
         // Vectors look like {{""}, {"a - e", "a + b"}, {"a + b"}, {""}}
         vector<vector<Expression*>> blockGenSets = {};
         vector<vector<Expression*>> blockKilledSets = {};
+        vector<vector<Expression*>> blockInSets = {};
+        vector<vector<Expression*>> blockOutSets = {};
         unsigned blockNum = 0;
 
         // PASS 1: Create GEN sets for each block
@@ -203,7 +213,7 @@ struct CSElimination : public FunctionPass {
 
         // PASS 3: If exp1 kills exp2 in a block and exp1 comes after exp2, remove exp2 from block's GEN set
         // exp2 is not available at the end of B, so is not generated
-        errs() << "PASS 2: Update GEN sets with KILL for each block\n";
+        errs() << "PASS 3: Update GEN sets with KILL for each block\n";
         for (unsigned i = 0; i < blockGenSets.size(); i++) { // For each block
             errs() << "Updating GEN set for block " << i << "...\n";
 
@@ -215,12 +225,122 @@ struct CSElimination : public FunctionPass {
                 for (unsigned k = 0; k < blockKilledSets.at(i).size(); k++) { // For each KILL expression in block
                     Expression* killedSetExpression = blockKilledSets.at(i).at(k);
                     // If expression is in GEN and KILL and KILL comes after GEN, exp doesn't reach end of block
-                    if ((*genSetExpression == *killedSetExpression) && (genSetExpression->index < killedSetExpression->index)) {
+                    if ((expsEqualWithoutIndex(*genSetExpression, *killedSetExpression)) && (genSetExpression->index < killedSetExpression->index)) {
                         errs() << "    Deleted: ";
                         genSetExpression->print();
                         blockGenSets.at(i).at(j) = new Expression("", "", "", -1); // Set block's GEN exp to empty
                     }
                 }
+            }
+        }
+
+        // Clean GEN sets for each block (remove empty Expressions)
+        for (unsigned i = 0; i < blockGenSets.size(); i++) {
+            for (unsigned j = 0; j < blockGenSets.at(i).size(); j++) {
+                if(blockGenSets.at(i).at(j)->index == -1) {
+                    // Move this element to the last and then pop_back
+                    Expression* temp = blockGenSets.at(i).at(blockGenSets.at(i).size() - 1);
+                    blockGenSets.at(i).at(blockGenSets.at(i).size() - 1) = blockGenSets.at(i).at(j);
+                    blockGenSets.at(i).at(j) = temp;
+                    blockGenSets.at(i).pop_back();
+                }
+            }
+        }
+        errs() << "\n";
+
+        blockNum = 0;
+
+        // PASS 4: Create IN and OUT sets for each block
+        errs() << "PASS 4: Create IN and OUT sets for each block\n";
+        for (auto& basic_block : F) { // Iterates over basic blocks of the function
+
+            vector<Expression*> currInSet = {};
+            vector<Expression*> currOutSet = {};
+            unsigned numPredecessors = 0;
+            
+            // Initial block has no IN
+            if (blockNum == 0) {
+                currInSet = {};
+            }
+            // Create currInSet using the Intersection of predecessor's OUTs
+            else {
+                for (auto* pred : predecessors(&basic_block)) {
+                    unsigned predBlockNum = 0;
+                    for (auto& predBlock : F) { // Find block number for predecessor
+                        if (&predBlock == pred) {
+                            break;
+                        }
+                        predBlockNum++;
+                    }
+                    // Create OutSets
+                    if (numPredecessors == 0) {
+                        for (unsigned int i = 0; i < blockOutSets.at(predBlockNum).size(); i++) {
+                            currInSet.push_back(blockOutSets.at(predBlockNum).at(i));
+                        }
+                    }
+                    else {
+                        for (unsigned int i = 0; i < currInSet.size(); i++) {
+                            bool isInBothOuts = false;
+                            for (unsigned int j = 0; j < blockOutSets.at(predBlockNum).size(); j++) {
+                                if (expsEqualWithoutIndex(*currInSet.at(i), *blockOutSets.at(predBlockNum).at(j))) {
+                                    isInBothOuts = true;
+                                    break;
+                                }
+                            }   
+                            if (!isInBothOuts) {
+                                // delete expression from currInSet
+                                Expression* temp = currInSet.at(i);
+                                currInSet.at(i) = currInSet.at(currInSet.size() - 1);
+                                currInSet.at(currInSet.size() - 1) = temp;
+                                currInSet.pop_back();
+                            }
+                        }
+                    }
+                    
+                    numPredecessors++;
+                }
+            }
+
+            // OUT = (IN - KILL) + GEN
+            // currOutSet = (currInSet - blockKilledSets.at(blockNum)) + blockGenSets.at(blockNum);
+
+            set<Expression*> currGen(blockGenSets.at(blockNum).begin(), blockGenSets.at(blockNum).end());
+            set<Expression*> currKill(blockKilledSets.at(blockNum).begin(), blockKilledSets.at(blockNum).end());
+            set<Expression*> currIn(currInSet.begin(), currInSet.end());
+            set<Expression*> currOut(currOutSet.begin(), currOutSet.end());
+
+            set_difference(currIn.begin(), currIn.end(), currKill.begin(), currKill.end(), inserter(currOut, currOut.begin()));
+            set_union(currGen.begin(), currGen.end(), currOut.begin(), currOut.end(), inserter(currOut, currOut.begin()));
+
+            vector<Expression*> outResult(currOut.begin(), currOut.end());
+            currOutSet = outResult;
+
+            // Add IN and OUT set for that particular block
+            blockInSets.push_back(currInSet);
+            blockOutSets.push_back(currOutSet);
+            blockNum++;
+        }
+
+        for (unsigned i = 0; i < blockInSets.size(); ++i) {
+            errs() << "\nBlock " << i << " IN set:\n";
+            for (unsigned j = 0; j < blockInSets.at(i).size(); ++j) {
+                errs() << "  ";
+                blockInSets.at(i).at(j)->print();
+            }
+            errs() << "\nBlock " << i << " GEN set:\n";
+            for (unsigned j = 0; j < blockGenSets.at(i).size(); ++j) {
+                errs() << "  ";
+                blockGenSets.at(i).at(j)->print();
+            }
+            errs() << "\nBlock " << i << " KILL set:\n";
+            for (unsigned j = 0; j < blockKilledSets.at(i).size(); ++j) {
+                errs() << "  ";
+                blockKilledSets.at(i).at(j)->print();
+            }
+            errs() << "\nBlock " << i << " OUT set:\n";
+            for (unsigned j = 0; j < blockOutSets.at(i).size(); ++j) {
+                errs() << "  ";
+                blockOutSets.at(i).at(j)->print();
             }
         }
 

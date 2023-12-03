@@ -1,6 +1,7 @@
 void test() {
   int a, b, c, d, e, f;
   c = f;
+  b = a - e;
   if (e > 0) {
     b = a - e;
     e = b + c;

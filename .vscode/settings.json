@@ -1,6 +1,7 @@
 {
     "files.associations": {
         "*.def": "cpp",
-        "string_view": "cpp"
+        "string_view": "cpp",
+        "array": "cpp"
     }
 }
