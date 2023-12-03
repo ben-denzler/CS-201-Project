@@ -1,3 +1,4 @@
+#include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
@@ -94,6 +95,12 @@ struct Expression {
     }
 };
 
+struct ExprEqualityWithoutIndex {
+    bool operator()(const Expression* exp1, const Expression* exp2) const {
+        return (exp1->operand1 == exp2->operand1) && (exp1->operand2 == exp2->operand2) && (exp1->opcode == exp2->opcode);
+    }
+};
+
 bool expsEqualWithoutIndex(const Expression& exp1, const Expression& exp2) {
     return (exp1.operand1 == exp2.operand1) && (exp1.operand2 == exp2.operand2) && (exp1.opcode == exp2.opcode);
 }
@@ -114,11 +121,11 @@ struct CSElimination : public FunctionPass {
 
         // PASS 1: Create GEN sets for each block
         errs() << "PASS 1: Create GEN sets for each block\n";
+        unsigned instructionIndex = 0;
         for (auto& basic_block : F) { // Iterates over basic blocks of the function
             errs() << "Block " << blockNum++ << ":\n";
 
             vector<Expression*> currGenSet = {}; // Current block's GEN set
-            unsigned instructionIndex = 0;
 
             for (auto& inst : basic_block) { // Iterates over instructions in a basic block
                 // Find statements A = B op C where op is {+, -, *, /}
@@ -158,11 +165,11 @@ struct CSElimination : public FunctionPass {
 
         // PASS 2: Create KILL sets for each block
         errs() << "PASS 2: Create KILL sets for each block\n";
+        instructionIndex = 0;
         for (auto& basic_block : F) { // Iterates over basic blocks of the function
             errs() << "Block " << blockNum << ":\n";
 
             vector<Expression*> currKilledSet = {}; // Current block's KILL set
-            unsigned instructionIndex = 0;
 
             for (auto& inst : basic_block) { // Iterates over instructions in a basic block
                 // Find statements A = ~ where A is an operand in this block's expressions
@@ -249,21 +256,22 @@ struct CSElimination : public FunctionPass {
         errs() << "\n";
 
         blockNum = 0;
+        instructionIndex = 0;
 
         // PASS 4: Create IN and OUT sets for each block
         errs() << "PASS 4: Create IN and OUT sets for each block\n";
         for (auto& basic_block : F) { // Iterates over basic blocks of the function
-
             vector<Expression*> currInSet = {};
             vector<Expression*> currOutSet = {};
-            unsigned numPredecessors = 0;
             
-            // Initial block has no IN
+            
+            // Initial block has no IN set
             if (blockNum == 0) {
                 currInSet = {};
             }
-            // Create currInSet using the Intersection of predecessor's OUTs
+            // Current block's IN set is the intersection of its predecessors' OUTs
             else {
+                unsigned predecessorIndex = 0;
                 for (auto* pred : predecessors(&basic_block)) {
                     unsigned predBlockNum = 0;
                     for (auto& predBlock : F) { // Find block number for predecessor
@@ -273,7 +281,7 @@ struct CSElimination : public FunctionPass {
                         predBlockNum++;
                     }
                     // Create OutSets
-                    if (numPredecessors == 0) {
+                    if (predecessorIndex == 0) {
                         for (unsigned int i = 0; i < blockOutSets.at(predBlockNum).size(); i++) {
                             currInSet.push_back(blockOutSets.at(predBlockNum).at(i));
                         }
@@ -297,23 +305,103 @@ struct CSElimination : public FunctionPass {
                         }
                     }
                     
-                    numPredecessors++;
+                    predecessorIndex++;
                 }
             }
 
+            // Recalculate the currKillSet
+            vector<Expression*> currKilledSet = blockKilledSets.at(blockNum); // Current block's KILL set
+
+            for (auto& inst : basic_block) { // Iterates over instructions in a basic block
+                // Find statements A = ~ where A is an operand in this block's expressions
+                if (inst.getOpcode() == Instruction::Store) {
+                    string storeDestination = GetValueOperand(inst.getOperand(1), 1);
+                    errs() << "  Found A = B op C where A is \'" << storeDestination << "\'\n";
+
+                    // Check if an expression in this block used the same storeDestination as an operand
+                    unsigned numInExpsInBlock = currInSet.size();
+                    for (unsigned j = 0; j < numInExpsInBlock; j++) {
+                        Expression* inSetExpression = currInSet.at(j);
+                        errs() << "    Checking IN expression " << j << " in block " << blockNum << "...\n";
+
+                        // Does destination match either operand in this expression?
+                        if (storeDestination == inSetExpression->operand1 || storeDestination == inSetExpression->operand2) {
+                            errs() << "      Found match: ";
+                            inSetExpression->print();
+
+                            // Add the *killed* expression to this block's kill set
+                            // Index of the killed expression is where it was killed
+                            Expression* killedExp = new Expression(
+                                inSetExpression->operand1,
+                                inSetExpression->operand2,
+                                inSetExpression->opcode,
+                                instructionIndex);
+                            currKilledSet.push_back(killedExp);
+                        }
+                    }
+                }
+                instructionIndex++;
+            }
+
+            // Print KILL sets for each block
+            errs() << "Print KILL sets for each block\n";
+            errs() << "OLD Block " << blockNum << " KILL set:\n";
+            for (unsigned i = 0; i < blockKilledSets.at(blockNum).size(); i++) {
+                errs() << "  ";
+                blockKilledSets.at(blockNum).at(i)->print();
+            }
+            errs() << "\n";
+            blockKilledSets.at(blockNum) = currKilledSet;
+            errs() << "NEW Block " << blockNum << " KILL set:\n";
+            for (unsigned i = 0; i < blockKilledSets.at(blockNum).size(); i++) {
+                errs() << "  ";
+                blockKilledSets.at(blockNum).at(i)->print();
+            }
+            errs() << "\n";
+
             // OUT = (IN - KILL) + GEN
-            // currOutSet = (currInSet - blockKilledSets.at(blockNum)) + blockGenSets.at(blockNum);
+            // currOutSet = (currInSet - currKilledSet) + blockGenSets.at(blockNum);
+            currOutSet = blockGenSets.at(blockNum);
+            vector<Expression*> difference = {};
+            for (unsigned int i = 0; i < currInSet.size(); i++) {
+                bool shouldKill = false;
+                for (unsigned int j = 0; j < currKilledSet.size(); j++) {
+                    if (expsEqualWithoutIndex(*currInSet.at(i), *currKilledSet.at(j))) {
+                        shouldKill = true;
+                    }
+                }
+                if (!shouldKill) {
+                    difference.push_back(currInSet.at(i));
+                }
+            }
 
-            set<Expression*> currGen(blockGenSets.at(blockNum).begin(), blockGenSets.at(blockNum).end());
-            set<Expression*> currKill(blockKilledSets.at(blockNum).begin(), blockKilledSets.at(blockNum).end());
-            set<Expression*> currIn(currInSet.begin(), currInSet.end());
-            set<Expression*> currOut(currOutSet.begin(), currOutSet.end());
+            errs() << "Difference between IN and KILL of block " << blockNum << "\n";
+            for (unsigned int i = 0; i < difference.size(); i++) {
+                difference.at(i)->print();
+            }
 
-            set_difference(currIn.begin(), currIn.end(), currKill.begin(), currKill.end(), inserter(currOut, currOut.begin()));
-            set_union(currGen.begin(), currGen.end(), currOut.begin(), currOut.end(), inserter(currOut, currOut.begin()));
+            for (unsigned int i = 0; i < difference.size(); i++) {
+                bool alreadyExists = false;
+                for (unsigned int j = 0; j < currOutSet.size(); j++) {
+                    if (difference.at(i) == currOutSet.at(j)) {
+                        alreadyExists = true;
+                    }
+                }
+                if (!alreadyExists) {
+                    currOutSet.push_back(difference.at(i));
+                }
+            }
 
-            vector<Expression*> outResult(currOut.begin(), currOut.end());
-            currOutSet = outResult;
+            // set<Expression*> currGen(blockGenSets.at(blockNum).begin(), blockGenSets.at(blockNum).end());
+            // set<Expression*> currKill(currKilledSet.begin(), currKilledSet.end());
+            // set<Expression*> currIn(currInSet.begin(), currInSet.end());
+            // set<Expression*> currOut(currOutSet.begin(), currOutSet.end());
+
+            // set_difference(currIn.begin(), currIn.end(), currKill.begin(), currKill.end(), inserter(currOut, currOut.begin()), ExprEqualityWithoutIndex());
+            // set_union(currGen.begin(), currGen.end(), currOut.begin(), currOut.end(), inserter(currOut, currOut.begin()));
+
+            // vector<Expression*> outResult(currOut.begin(), currOut.end());
+            // currOutSet = outResult;
 
             // Add IN and OUT set for that particular block
             blockInSets.push_back(currInSet);
@@ -321,6 +409,7 @@ struct CSElimination : public FunctionPass {
             blockNum++;
         }
 
+        // Print all IN, GEN, KILL, and OUT sets for ever block
         for (unsigned i = 0; i < blockInSets.size(); ++i) {
             errs() << "\nBlock " << i << " IN set:\n";
             for (unsigned j = 0; j < blockInSets.at(i).size(); ++j) {
