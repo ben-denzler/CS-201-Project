@@ -7,12 +7,11 @@
 #include "llvm/Pass.h"
 #include "llvm/Support/raw_ostream.h"
 #include <fstream>
+#include <iostream>
 #include <queue>
 #include <set>
 #include <string>
 #include <unordered_map>
-#include <iostream>
-#include <fstream>
 
 using namespace llvm;
 using namespace std;
@@ -47,7 +46,7 @@ string GetInstrDestination(Instruction& instr, unsigned opNumber) {
     // Isolate operand for store instructions
     // For 'Store i32 %10, i32* %2, align 4 (store w/ destination:   %2 = alloca i32, align 4)', isolate %10
     else if (opNumber == 2) {
-        unsigned instrPercentIndex = instrString.find("%", 0);              // Find index of first %
+        unsigned instrPercentIndex = instrString.find("%", 0);                // Find index of first %
         unsigned instrCommaIndex = instrString.find(", ", instrPercentIndex); // Find index of second ,
         return instrString.substr(instrPercentIndex, instrCommaIndex - instrPercentIndex);
     }
@@ -275,7 +274,7 @@ struct CSElimination : public FunctionPass {
         // Clean GEN sets for each block (remove empty Expressions)
         for (unsigned i = 0; i < blockGenSetsAvail.size(); i++) {
             for (unsigned j = 0; j < blockGenSetsAvail.at(i).size(); j++) {
-                if(blockGenSetsAvail.at(i).at(j)->index == -1) {
+                if (blockGenSetsAvail.at(i).at(j)->index == -1) {
                     // Move this element to the last and then pop_back
                     Expression* temp = blockGenSetsAvail.at(i).at(blockGenSetsAvail.at(i).size() - 1);
                     blockGenSetsAvail.at(i).at(blockGenSetsAvail.at(i).size() - 1) = blockGenSetsAvail.at(i).at(j);
@@ -294,8 +293,7 @@ struct CSElimination : public FunctionPass {
         for (auto& basic_block : F) { // Iterates over basic blocks of the function
             vector<Expression*> currInSet = {};
             vector<Expression*> currOutSet = {};
-            
-            
+
             // Initial block has no IN set
             if (blockNum == 0) {
                 currInSet = {};
@@ -316,8 +314,7 @@ struct CSElimination : public FunctionPass {
                         for (unsigned int i = 0; i < blockOutSetsAvail.at(predBlockNum).size(); i++) {
                             currInSet.push_back(blockOutSetsAvail.at(predBlockNum).at(i));
                         }
-                    }
-                    else {
+                    } else {
                         // First predecessor's OUTs must be in all other predecessors' OUTs
                         for (unsigned int i = 0; i < currInSet.size(); i++) {
                             bool isInAllPredecessors = false;
@@ -343,7 +340,7 @@ struct CSElimination : public FunctionPass {
 
             // Update currKillSet to consider predecessors' OUT expressions
             vector<Expression*> currKilledSet = blockKilledSetsAvail.at(blockNum); // Current block's KILL set
-            for (auto& inst : basic_block) { // Iterates over instructions in a basic block
+            for (auto& inst : basic_block) {                                       // Iterates over instructions in a basic block
                 // Find statements A = ~ where A is an operand in this block's expressions
                 if (inst.getOpcode() == Instruction::Store) {
                     string storeDestination = GetValueOperand(inst.getOperand(1), 1);
@@ -426,8 +423,8 @@ struct CSElimination : public FunctionPass {
         blockNum = 0;
 
         // First Pass: Get all of the indexes and destination variables of the store instructions
-        for (auto &basic_block : F) {  // Iterates over basic blocks of the function 
-            for (auto &inst : basic_block) {  // Iterates over instructions in a basic block
+        for (auto& basic_block : F) {        // Iterates over basic blocks of the function
+            for (auto& inst : basic_block) { // Iterates over instructions in a basic block
                 if (inst.getOpcode() == Instruction::Store) {
                     Value* storeDestination = inst.getOperand(1);
                     storeInstructionIndices.push_back(instrIndex);
@@ -444,14 +441,14 @@ struct CSElimination : public FunctionPass {
         vector<vector<unsigned>> blockKillSetsReach = {};
 
         // Second Pass: Add to GEN and KILL sets
-        for (auto &basic_block : F) {  // Iterates over basic blocks of the function 
+        for (auto& basic_block : F) { // Iterates over basic blocks of the function
             vector<vector<unsigned>> GEN_KILLSETS = {};
             vector<unsigned> GEN = {};
             vector<unsigned> KILL = {};
 
-            for (auto &inst : basic_block) {  // Iterates over instructions in a basic block
+            for (auto& inst : basic_block) { // Iterates over instructions in a basic block
                 if (inst.getOpcode() == Instruction::Store) {
-                    GEN.push_back(instrIndex);  // Each store instruction is a GEN
+                    GEN.push_back(instrIndex); // Each store instruction is a GEN
                     Value* storeDestination = inst.getOperand(1);
 
                     // Find other instructions that change the same variable; add them to block's KILL
@@ -476,19 +473,18 @@ struct CSElimination : public FunctionPass {
         blockNum = 0;
 
         // Create the IN and OUT set for each block
-        for (auto &basic_block : F) {
+        for (auto& basic_block : F) {
             vector<unsigned> IN = {};
             vector<unsigned> OUT = {};
 
             // Initial block has no IN
             if (blockNum == 0) {
                 IN = {};
-            }
-            else {
+            } else {
                 // Use the block's predecessors for IN
-                for (auto *pred: predecessors(&basic_block)) {
+                for (auto* pred : predecessors(&basic_block)) {
                     unsigned predBlockNum = 0;
-                    for (auto &funcBlock : F) {
+                    for (auto& funcBlock : F) {
                         // Find block number for predecessor
                         if (&funcBlock == pred) {
                             break;
@@ -511,7 +507,7 @@ struct CSElimination : public FunctionPass {
             // OUT = (IN - KILL) + GEN; result is stored in currOut
             set_difference(currIn.begin(), currIn.end(), currKill.begin(), currKill.end(), inserter(currOut, currOut.begin()));
             set_union(currGen.begin(), currGen.end(), currOut.begin(), currOut.end(), inserter(currOut, currOut.begin()));
-            
+
             // Turn OUT back into a vector
             vector<unsigned> temp(currOut.begin(), currOut.end());
             OUT = temp;
@@ -548,7 +544,7 @@ struct CSElimination : public FunctionPass {
             }
             errs() << "\n";
         }
-        
+
         // ===============================
         //    END REACHING DEFINITIONS
         // ===============================
@@ -585,15 +581,14 @@ struct CSElimination : public FunctionPass {
 
         // PASS 5: transformation for CSElimination
         errs() << "PASS 5: Transform for CSElimination\n";
-        vector<unsigned int> changeTheseLines = {};
-
+        vector<unsigned int> linesToSetTemp = {};
+        vector<unsigned int> linesThatUseTemp = {};
         for (auto& basic_block : F) {
             for (auto& inst : basic_block) {
                 // If statement is A = B op C in block S
                 if (inst.getOpcode() == Instruction::Add || inst.getOpcode() == Instruction::Sub || inst.getOpcode() == Instruction::Mul || inst.getOpcode() == Instruction::SDiv) {
                     Value* op1 = inst.getOperand(0);
                     Value* op2 = inst.getOperand(1);
-                    //errs() << "  Found A = B op C: op1 is \'" << *op1 << "\', op2 is \'" << *op2 << "\', opcode " << inst.getOpcode() << "\n";
 
                     // Both operands should look like '%22 = load i32, i32* %2, align 4'
                     // If either operand is NOT a load, it's an immediate; ignore those
@@ -601,24 +596,25 @@ struct CSElimination : public FunctionPass {
                         // Save the expression
                         Expression* exp = new Expression(op1, op2, inst.getOpcode(), instructionIndex);
 
-                        // Is the expression available at entry of this block?
                         bool expIsAvailableAtEntry = false;
-                        string availDestination = "";
                         unsigned int availIndex = 0;
+                        string availDestination = "";
                         vector<string> availDestinations = {};
 
-                        // For every available expression that matches, add its' destination to the vector availIndex
+                        // Is the expression available at entry of this block?
                         for (unsigned i = 0; i < blockInSetsAvail.at(blockNum).size(); ++i) {
                             if (expsEqualWithoutIndex(*exp, *blockInSetsAvail.at(blockNum).at(i))) {
+                                linesThatUseTemp.push_back(instructionIndex);
                                 expIsAvailableAtEntry = true;
-                                availIndex = blockInSetsAvail.at(blockNum).at(i)->index;
+                                availIndex = blockInSetsAvail.at(blockNum).at(i)->index; // Save expression's index
 
-                                // Get the destination of the expression from the in set
+                                // Find the IR instruction corresponding to the expression
                                 unsigned innerInstrIndex = 0;
                                 for (auto& basic_block : F) {
                                     for (auto& inst : basic_block) {
-                                        // Find the line that matches the index then
                                         if (innerInstrIndex == availIndex) {
+                                            // Save the expression's destination
+                                            // Represents RHS, e.g. dest = B op C
                                             availDestination = GetInstrDestination(inst, 1);
                                             availDestinations.push_back(availDestination);
                                         }
@@ -629,28 +625,22 @@ struct CSElimination : public FunctionPass {
                             }
                         }
 
-
                         if (expIsAvailableAtEntry) {
-                            errs() << "Looking for ";
-                            for (unsigned int i = 0; i < availDestinations.size(); i++) {
-                                errs() << availDestinations.at(i) << " ";
-                            }
-                            vector<unsigned> defsReachingBlock = blockInSetsReach.at(blockNum);  // Indices of instructions
-                            errs() << "Block " << blockNum << "\n";
-                            // Look at store instruction and grab the location of the value
-                            // ex: 11: store i32 %10, i32* %2, align 4, isolate %10
+                            // Indices of definitions that reach our block
+                            vector<unsigned> defsReachingBlock = blockInSetsReach.at(blockNum);
+                            // Find the IR instruction for each definition that reaches our block
                             for (unsigned i = 0; i < defsReachingBlock.size(); ++i) {
                                 unsigned innerInstrIndex = 0;
                                 for (auto& basic_block : F) {
                                     for (auto& inst : basic_block) {
                                         if (innerInstrIndex == defsReachingBlock.at(i)) {
-                                            errs() << "   " << innerInstrIndex << ": " << inst << "\n";
+                                            // Destination for reaching def, represents B op C
                                             string reachingValue = GetInstrDestination(inst, 2);
                                             for (unsigned int i = 0; i < availDestinations.size(); i++) {
-                                                errs() << "      Compare " << reachingValue << " with " << availDestinations.at(i) << "\n";
+                                                // Does the reaching def use B op C like our available expression?
                                                 if (reachingValue == availDestinations.at(i)) {
-                                                    errs() << "******Found " << innerInstrIndex << ": " << inst << "\n";
-                                                    changeTheseLines.push_back(innerInstrIndex);
+                                                    errs() << "This line can be optimized: Index " << innerInstrIndex << ": " << inst << "\n";
+                                                    linesToSetTemp.push_back(innerInstrIndex);
                                                 }
                                             }
                                         }
@@ -659,61 +649,125 @@ struct CSElimination : public FunctionPass {
                                 }
                             }
                         }
-
                     } else {
                         errs() << "  Found A = B op C, but A or B is an immediate value.\n";
                     }
-
                 }
                 instructionIndex++;
             }
             blockNum++;
         }
+        
+        // Print out the lines that need to be replaced with store and load temp variables
+        errs() << "Lines to replace with two lines: ";
+        for (unsigned int i = 0; i < linesToSetTemp.size(); i++) {
+            errs() << linesToSetTemp.at(i) << ", ";
+        }
 
-        // Pass 6: Change the lines
+        // Print out the lines that need to be replaced since they use temp now
+        errs() << "\nLines to replace with one line: ";
+        for (unsigned int i = 0; i < linesThatUseTemp.size(); i++) {
+            errs() << linesThatUseTemp.at(i) << ", ";
+        }
+
+        // PASS 6: Print out the optimized IR code
+        errs() << "\n\nWriting optimized IR code to optimizedCode.txt...\n";
+
+        // Keep the instruction index and define the name of the output text file
         unsigned innerInstrIndex = 0;
         ofstream outputFile("optimizedCode.txt");
-        for (unsigned int i = 0; i < changeTheseLines.size(); i++) {
+
+        // Output %tmp variables, and increase line number by 1 for lines that we update due to temp
+        for (unsigned int i = 0; i < linesToSetTemp.size(); i++) {
             outputFile << "  %tmp" << i << " = alloca i32, align 4\n";
-            changeTheseLines = AddNumToVectorElements(changeTheseLines, 1);
+            linesToSetTemp = AddNumToVectorElements(linesToSetTemp, 1);
+            linesThatUseTemp = AddNumToVectorElements(linesThatUseTemp, 1);
             innerInstrIndex++;
         }
 
+        // Output each line of instruction including the new temp instructions
         int lineChangedXTimes = 0;
-        int currVariableNum = 0;
+        int currRegisterNum = 0;
         for (auto& basic_block : F) {
             for (auto& instr : basic_block) {
+                // Change the instruction to a string
                 string temp = "";
                 raw_string_ostream stream(temp);
                 instr.print(stream);
                 string instrString = stream.str();
-                for (unsigned int i = 0; i < changeTheseLines.size(); i++) {
-                    if (changeTheseLines.at(i) == innerInstrIndex) {
-                        // Fix store line
-                        unsigned instrStringPercentIndex = instrString.find("%", 13);             // Find index of second %
-                        unsigned instrStringCommaIndex = instrString.find(",", instrStringPercentIndex); // Find index of second ,
+
+                // Keep a bool for whether the line was already changed due to temp
+                bool alreadyChangedLine = false;
+
+                // Look through the vector that holds the line number we want to change and see if we are that instruction (for creation)
+                for (unsigned int i = 0; i < linesToSetTemp.size(); i++) {
+                    if (linesToSetTemp.at(i) == innerInstrIndex) {
+                        // Create a store instruction that uses tmp and replace the current instruction
+                        // ex: store i32 %add, i32* %tmp, align 4
+                        unsigned instrStringPercentIndex = instrString.find("%", 13);
+                        unsigned instrStringCommaIndex = instrString.find(",", instrStringPercentIndex);
                         instrString.replace(instrStringPercentIndex, instrStringCommaIndex - instrStringPercentIndex, "%tmp" + to_string(i));
                         outputFile << instrString << "\n";
 
+                        // Create a load instruction to load tmp to a register and add a new instruction
+                        // ex: %6 = load i32, i32* %tmp, align 4
+                        outputFile << "  %" << ++currRegisterNum << " = load i32, i32* %tmp" << to_string(i) << ", align 4\n";
 
-                        //Add load line
-                        outputFile <<  "  %" << ++currVariableNum << " = load i32, i32* %tmp" << to_string(i) << ", align 4\n";
+                        // The number of lines have increased in the file
                         lineChangedXTimes++;
+                        alreadyChangedLine = true;
                         break;
                     }
                 }
-                if (lineChangedXTimes > 0 && (isa<LoadInst>(instr) || isa<AllocaInst>(instr)) || isa<BinaryOperator>(instr) || isa<ICmpInst>(instr)) {
-                        unsigned instrStringPercentIndex = instrString.find("%", 0);             // Find index of second %
-                        unsigned instrStringCommaIndex = instrString.find(" =", instrStringPercentIndex); // Find index of second =
-                        currVariableNum = stoi(instrString.substr(instrStringPercentIndex + 1, instrStringCommaIndex - instrStringPercentIndex));
-                        errs() << to_string(currVariableNum) << " ";
 
-                        instrStringPercentIndex = instrString.find("%", 0);             // Find index of second %
-                        instrStringCommaIndex = instrString.find(" =", instrStringPercentIndex); // Find index of second =
-                        instrString.replace(instrStringPercentIndex, instrStringCommaIndex - instrStringPercentIndex, "%" + to_string(currVariableNum + lineChangedXTimes));
+                // Look through the vector that holds the line number we want to change and see if we are that instruction (for uses)
+                for (unsigned int i = 0; i < linesThatUseTemp.size(); i++) {
+                    if (linesThatUseTemp.at(i) == innerInstrIndex) {
+                        // Look for the register number in the current instruction
+                        // ex: %10 = add nsw i32 %8, %9, isolate 10
+                        unsigned instrStringPercentIndex = instrString.find("%", 0);
+                        unsigned instrStringCommaIndex = instrString.find(" =", instrStringPercentIndex);
+                        int replaceNum = stoi(instrString.substr(instrStringPercentIndex + 1, instrStringCommaIndex - instrStringPercentIndex));
+                        
+                        // Create a new instruction that loads temp instead of recomputing the add, sub, mult, or div expression and replace the current instruction
+                        // ex: %10 = load i32, i32* %tmp, align 4
+                        instrString =  "  %" + to_string(replaceNum + lineChangedXTimes) + " = load i32, i32* " + "%tmp" + to_string(i) + ", align 4";
                         outputFile << instrString << "\n";
+                        alreadyChangedLine = true;
+                        break;
+                    }
                 }
-                else {
+
+                // If the line was already changed due to temp, then skip this step, otherwise continue
+                // Online look at load, alloc, add, sub, mult, sdiv, or comparison instruction (skip break for now)
+                if (!alreadyChangedLine && lineChangedXTimes > 0 && (isa<LoadInst>(instr) || isa<AllocaInst>(instr) || isa<BinaryOperator>(instr) || isa<ICmpInst>(instr))) {
+                    // Find the current register number
+                    unsigned instrStringPercentIndex = instrString.find("%", 0);
+                    unsigned instrStringCommaIndex = instrString.find(" =", instrStringPercentIndex);
+                    currRegisterNum = stoi(instrString.substr(instrStringPercentIndex + 1, instrStringCommaIndex - instrStringPercentIndex));
+
+                    // Replace the current line's register number to an updated register number since temp used some before this
+                    instrStringPercentIndex = instrString.find("%", 0);
+                    instrStringCommaIndex = instrString.find(" =", instrStringPercentIndex);
+                    instrString.replace(instrStringPercentIndex, instrStringCommaIndex - instrStringPercentIndex, "%" + to_string(currRegisterNum + lineChangedXTimes));
+                    
+                    // If it is a comparison instruction, then we want to do more
+                    if (isa<ICmpInst>(instr)) {
+                        // Save the register number that we are going to compare to
+                        instrStringPercentIndex = instrString.find("%", 20);
+                        instrStringCommaIndex = instrString.find(", ", instrStringPercentIndex);
+                        int comparisonNum = stoi(instrString.substr(instrStringPercentIndex + 1, instrStringCommaIndex - instrStringPercentIndex));
+
+                        // Update the string with the correct register number
+                        instrStringPercentIndex = instrString.find("%", 20);
+                        instrStringCommaIndex = instrString.find(", ", instrStringPercentIndex);
+                        instrString.replace(instrStringPercentIndex, instrStringCommaIndex - instrStringPercentIndex, "%" + to_string(comparisonNum + lineChangedXTimes));
+                    }
+
+                    outputFile << instrString << "\n";
+
+                // If we have never update the previous strings with temp, then we can just copy the exact same string
+                } else if (!alreadyChangedLine) {
                     outputFile << instrString << "\n";
                 }
 
@@ -724,7 +778,7 @@ struct CSElimination : public FunctionPass {
         return true; // Indicate this is a Transform pass
     }
 }; // end of struct CSElimination
-}  // end of anonymous namespace
+} // end of anonymous namespace
 
 char CSElimination::ID = 0;
 static RegisterPass<CSElimination> X("CSElimination", "CSElimination Pass",
