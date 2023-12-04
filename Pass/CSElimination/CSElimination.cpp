@@ -657,7 +657,7 @@ struct CSElimination : public FunctionPass {
             }
             blockNum++;
         }
-        
+
         // Print out the lines that need to be replaced with store and load temp variables
         errs() << "Lines to replace with two lines: ";
         for (unsigned int i = 0; i < linesToSetTemp.size(); i++) {
@@ -728,10 +728,10 @@ struct CSElimination : public FunctionPass {
                         unsigned instrStringPercentIndex = instrString.find("%", 0);
                         unsigned instrStringCommaIndex = instrString.find(" =", instrStringPercentIndex);
                         int replaceNum = stoi(instrString.substr(instrStringPercentIndex + 1, instrStringCommaIndex - instrStringPercentIndex));
-                        
+
                         // Create a new instruction that loads temp instead of recomputing the add, sub, mult, or div expression and replace the current instruction
                         // ex: %10 = load i32, i32* %tmp, align 4
-                        instrString =  "  %" + to_string(replaceNum + lineChangedXTimes) + " = load i32, i32* " + "%tmp" + to_string(i) + ", align 4";
+                        instrString = "  %" + to_string(replaceNum + lineChangedXTimes) + " = load i32, i32* " + "%tmp" + to_string(i) + ", align 4";
                         outputFile << instrString << "\n";
                         alreadyChangedLine = true;
                         break;
@@ -750,7 +750,7 @@ struct CSElimination : public FunctionPass {
                     instrStringPercentIndex = instrString.find("%", 0);
                     instrStringCommaIndex = instrString.find(" =", instrStringPercentIndex);
                     instrString.replace(instrStringPercentIndex, instrStringCommaIndex - instrStringPercentIndex, "%" + to_string(currRegisterNum + lineChangedXTimes));
-                    
+
                     // If it is a comparison instruction, then we want to do more
                     if (isa<ICmpInst>(instr)) {
                         // Save the register number that we are going to compare to
@@ -766,15 +766,13 @@ struct CSElimination : public FunctionPass {
 
                     outputFile << instrString << "\n";
 
-                // If we have never update the previous strings with temp, then we can just copy the exact same string
+                    // If we have never update the previous strings with temp, then we can just copy the exact same string
                 } else if (!alreadyChangedLine) {
                     outputFile << instrString << "\n";
                 }
-
                 innerInstrIndex++;
             }
         }
-
         return true; // Indicate this is a Transform pass
     }
 }; // end of struct CSElimination

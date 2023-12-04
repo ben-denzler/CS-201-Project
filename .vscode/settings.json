@@ -3,6 +3,9 @@
         "*.def": "cpp",
         "string_view": "cpp",
         "array": "cpp",
-        "iosfwd": "cpp"
+        "iosfwd": "cpp",
+        "bitset": "cpp",
+        "initializer_list": "cpp",
+        "utility": "cpp"
     }
 }
