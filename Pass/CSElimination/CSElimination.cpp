@@ -239,7 +239,7 @@ struct CSElimination : public FunctionPass {
         errs() << "\n";
 
         // Print KILL sets for each block
-        errs() << "Print KILL sets for each block\n";
+        errs() << "Print KILL sets for each block:\n";
         for (unsigned i = 0; i < blockKilledSetsAvail.size(); i++) {
             errs() << "Block " << i << " KILL set:\n";
             for (unsigned j = 0; j < blockKilledSetsAvail.at(i).size(); j++) {
@@ -373,23 +373,7 @@ struct CSElimination : public FunctionPass {
                 instructionIndex++;
             }
 
-            // Print KILL sets for each block
-            errs() << "\n";
-            errs() << "OLD Block " << blockNum << " KILL set:\n";
-            for (unsigned i = 0; i < blockKilledSetsAvail.at(blockNum).size(); i++) {
-                errs() << "  ";
-                blockKilledSetsAvail.at(blockNum).at(i)->print();
-            }
-            errs() << "\n";
-
             blockKilledSetsAvail.at(blockNum) = currKilledSet;
-
-            errs() << "NEW Block " << blockNum << " KILL set:\n";
-            for (unsigned i = 0; i < blockKilledSetsAvail.at(blockNum).size(); i++) {
-                errs() << "  ";
-                blockKilledSetsAvail.at(blockNum).at(i)->print();
-            }
-            errs() << "\n";
 
             // OUT = (IN - KILL) + GEN
             // currOutSet = (currInSet - currKilledSet) + blockGenSets.at(blockNum);
@@ -411,11 +395,6 @@ struct CSElimination : public FunctionPass {
                 }
             }
 
-            errs() << "Difference between IN and KILL of block " << blockNum << ":\n";
-            for (unsigned int i = 0; i < inMinusKill.size(); i++) {
-                inMinusKill.at(i)->print();
-            }
-
             // Find GEN + (IN - KILL)
             for (unsigned int i = 0; i < inMinusKill.size(); i++) {
                 bool alreadyExists = false;
@@ -435,37 +414,11 @@ struct CSElimination : public FunctionPass {
             blockNum++;
         }
 
-        // Print all IN, GEN, KILL, and OUT sets for every block
-        for (unsigned i = 0; i < blockInSetsAvail.size(); ++i) {
-            errs() << "\nBlock " << i << " available expressions:";
-            errs() << "\n  IN: ";
-            for (unsigned j = 0; j < blockInSetsAvail.at(i).size(); ++j) {
-                errs() << "  ";
-                blockInSetsAvail.at(i).at(j)->print();
-            }
-            errs() << "  GEN: ";
-            for (unsigned j = 0; j < blockGenSetsAvail.at(i).size(); ++j) {
-                errs() << "  ";
-                blockGenSetsAvail.at(i).at(j)->print();
-            }
-            errs() << "  KILL: ";
-            for (unsigned j = 0; j < blockKilledSetsAvail.at(i).size(); ++j) {
-                errs() << "  ";
-                blockKilledSetsAvail.at(i).at(j)->print();
-            }
-            errs() << "  OUT: ";
-            for (unsigned j = 0; j < blockOutSetsAvail.at(i).size(); ++j) {
-                errs() << "  ";
-                blockOutSetsAvail.at(i).at(j)->print();
-            }
-        }
-        errs() << "\n";
-
         // ===============================
         //    FIND REACHING DEFINITIONS
         // ===============================
 
-        errs() << "\nFinding Reaching Definitions for function: " << F.getName() << "\n";
+        errs() << "\nFinding Reaching Definitions for function: " << F.getName();
 
         vector<unsigned> storeInstructionIndices;
         vector<Value*> storeInstructionDestVars;
@@ -474,19 +427,15 @@ struct CSElimination : public FunctionPass {
 
         // First Pass: Get all of the indexes and destination variables of the store instructions
         for (auto &basic_block : F) {  // Iterates over basic blocks of the function 
-            errs() << "Block " << blockNum++ << ":\n";
             for (auto &inst : basic_block) {  // Iterates over instructions in a basic block
-                errs() << instrIndex << ": " << inst;
                 if (inst.getOpcode() == Instruction::Store) {
                     Value* storeDestination = inst.getOperand(1);
-                    errs() << " (store w/ destination: " << *storeDestination << ")";
                     storeInstructionIndices.push_back(instrIndex);
                     storeInstructionDestVars.push_back(storeDestination);
                 }
-                errs() << "\n";
                 instrIndex++;
             }
-            errs() << "\n";
+            blockNum++;
         }
 
         instrIndex = 0;
@@ -574,7 +523,7 @@ struct CSElimination : public FunctionPass {
             blockNum++;
         }
 
-        // Print IN, OUT, GEN, KILL for each block
+        // Print IN, OUT, GEN, KILL for each block's reaching definitions
         for (unsigned int i = 0; i < blockGenSetsReach.size(); ++i) {
             errs() << "\nBlock " << i << " reaching definitions:";
             errs() << "\n  IN: ";
@@ -603,7 +552,32 @@ struct CSElimination : public FunctionPass {
         // ===============================
         //    END REACHING DEFINITIONS
         // ===============================
-        
+
+        // Print all IN, GEN, KILL, and OUT sets for every block's available expressions
+        errs() << "\nAvailable Expressions for each block:";
+        for (unsigned i = 0; i < blockInSetsAvail.size(); ++i) {
+            errs() << "\nBlock " << i << " available expressions:";
+            errs() << "\n  IN:\n";
+            for (unsigned j = 0; j < blockInSetsAvail.at(i).size(); ++j) {
+                errs() << "    ";
+                blockInSetsAvail.at(i).at(j)->print();
+            }
+            errs() << "  GEN:\n";
+            for (unsigned j = 0; j < blockGenSetsAvail.at(i).size(); ++j) {
+                errs() << "    ";
+                blockGenSetsAvail.at(i).at(j)->print();
+            }
+            errs() << "  KILL:\n";
+            for (unsigned j = 0; j < blockKilledSetsAvail.at(i).size(); ++j) {
+                errs() << "    ";
+                blockKilledSetsAvail.at(i).at(j)->print();
+            }
+            errs() << "  OUT:\n";
+            for (unsigned j = 0; j < blockOutSetsAvail.at(i).size(); ++j) {
+                errs() << "    ";
+                blockOutSetsAvail.at(i).at(j)->print();
+            }
+        }
         errs() << "\n";
 
         blockNum = 0;
@@ -611,7 +585,7 @@ struct CSElimination : public FunctionPass {
 
         // PASS 5: transformation for CSElimination
         errs() << "PASS 5: Transform for CSElimination\n";
-        vector <unsigned int> changeTheseLines = {};
+        vector<unsigned int> changeTheseLines = {};
 
         for (auto& basic_block : F) {
             for (auto& inst : basic_block) {
